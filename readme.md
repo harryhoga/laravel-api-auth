@@ -8,7 +8,7 @@ PS: web 前端 API 没有绝对的安全，该项目的本意是给不暴露源�
 
 ## 安装  
 ```bash
-composer require hoga/laravel-api-auth
+composer require harryhoga/laravel-api-auth --prefer-dist
 ```
 
 ## 配置
