@@ -4,8 +4,9 @@ use Hoga\LaravelApiAuth\Middleware;
 
 return [
     'status' => Middleware::STATUS_ON, // 状态开启或关闭，LaravelApiAuth::STATUS_ON  或者 LaravelApiAuth::STATUS_OFF
+    'check_param' => Middleware::STATUS_ON,
     'error_handler' => Middleware::Error_403,//错误处理方式,LaravelApiAuth::Error_Throw 或者 LaravelApiAuth::Error_403
-    'log' => Middleware::LOG_OFF,//记录日志,需手工添加日志channel,LaravelApiAuth::LOG_ON 或者 LaravelApiAuth::LOG_OFF
+    'log' => Middleware::STATUS_OFF,//记录日志,需手工添加日志channel,LaravelApiAuth::STATUS_ON 或者 LaravelApiAuth::STATUS_OFF
     'roles' => [
         //        '{access_key}' => [
         //            'name' => '{role_name}',        // 角色名字，例如 android

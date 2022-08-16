@@ -4,7 +4,6 @@ namespace Hoga\LaravelApiAuth;
 
 use Carbon\Exceptions\InvalidIntervalException;
 use Closure;
-use Exception;
 use Illuminate\Http\Request;
 use Hoga\LaravelApiAuth\Exceptions\AccessKeyException;
 use Hoga\LaravelApiAuth\Exceptions\InvalidTokenException;
@@ -18,9 +17,6 @@ class Middleware
     const STATUS_ON = 'on';
     const STATUS_OFF = 'off';
 
-    const LOG_ON = 'on';
-    const LOG_OFF = 'off';
-
     const Error_Throw = 'Error_Throw';
     const Error_403 = 'Error_403';
 
@@ -32,31 +28,8 @@ class Middleware
     {
         $this->config = config('apiauth');
         $this->error403 = $this->config['error_handler'] == static::Error_403;
-        $this->logOn = $this->config['log'] == static::LOG_ON;
-    }
-
-    /**
-     * @param Request  $request
-     *
-     * @return mixed
-     * @throws \Hoga\LaravelApiAuth\Exceptions\AccessKeyException
-     * @throws \Hoga\LaravelApiAuth\Exceptions\InvalidTokenException
-     * @throws \Hoga\LaravelApiAuth\Exceptions\SignatureMethodException
-     */
-    private function error_handler($err_msg, $errException)
-    {
-        if ($this->error403 || !$errException)
-            abort(403, $err_msg);
-        else {
-            switch ($errException) {
-                case static::AccessKeyException:
-                    throw new AccessKeyException($err_msg);
-                case static::InvalidTokenException:
-                    throw new InvalidTokenException($err_msg);
-                case static::SignatureMethodException:
-                    throw new SignatureMethodException($err_msg);
-            }
-        }
+        $this->logOn = $this->config['log'] == static::STATUS_ON;
+        $this->checkParam = $this->config['check_param'] == static::STATUS_ON;
     }
 
     /**
@@ -78,37 +51,34 @@ class Middleware
             // 得到 api token
             $token = $request->hasHeader('api-token') ? $request->header('api-token') : $request->get('api-token');
 
-            if($this->logOn) Log::channel('apiAuthLog')->info("------------apiauth开始---------------") ;
-            if($this->logOn) Log::channel('apiAuthLog')->info($token);
+            $this->log("------------apiauth开始---------------");
+            $this->log($token);
             // 检查是否存在token
             $this->tokenExistCheck($token);
 
             // 得到 header 、 payload 、 signature 三段字符串
             list($header_string, $payload_string, $signature) = explode(".", $token);
-            if($this->logOn) Log::channel('apiAuthLog')->info(['header_string', $header_string, 'payload_string', $payload_string, 'base64decode_payloadstring', base64_decode($payload_string), 'signature', $signature]);
+            $this->log(['header_string', $header_string, 'payload_string', $payload_string, 'base64decode_payloadstring', base64_decode($payload_string), 'signature', $signature]);
 
             list($header, $payload, $alg) = array_values($this->parseParams($header_string, $payload_string));
 
-            if($this->logOn) Log::channel('apiAuthLog')->info(['header', $header, 'payload', $payload, 'alg', $alg]);
+            $this->log(['header', $header, 'payload', $payload, 'alg', $alg]);
 
             $role = $this->config['roles'][$payload['ak']];
-            if($this->logOn) Log::channel('apiAuthLog')->info(['role', $role]);
+            $this->log(['role', $role]);
 
-            if (isset($payload["paramData"]) && count($payload["paramData"])) {
-                if($this->logOn) Log::channel('apiAuthLog')->info('参数检查');
+            if ($this->checkParam && isset($payload["paramData"]) && count($payload["paramData"])) {
+                $this->log('------------------参数检查---------------');
                 foreach ($payload["paramData"] as $k => $v) {
-                    if($this->logOn) Log::channel('apiAuthLog')->info([$k, substr($request->get($k), 0, 100), $v]);
+                    $this->log([$k, substr($request->get($k), 0, 100), $v]);
                     if (substr($request->get($k), 0, 100) != $v) {
                         $this->error_handler('token param error!', static::InvalidTokenException);
                     }
                 }
             }
-
-            // $my_payload_string = base64_encode(json_encode($payload, true));
-            // dump('$my_payload_string', $my_payload_string);
             // 检查签名是否正确
-            if($this->logOn) Log::channel('apiAuthLog')->info("$header_string.$payload_string");
-            if($this->logOn) Log::channel('apiAuthLog')->info(md5("$header_string.$payload_string"));
+            $this->log("$header_string.$payload_string");
+            $this->log(md5("$header_string.$payload_string"));
 
             $this->signatureCheck($alg, "$header_string.$payload_string", $role['secret_key'], $signature);
 
@@ -117,7 +87,6 @@ class Middleware
 
         return $next($request);
     }
-
 
     /**
      * 检查是否存在token
@@ -197,7 +166,7 @@ class Middleware
      */
     public function signatureCheck(SignatureInterface $alg, string $signature_string, string $secret, $signature): void
     {
-        if($this->logOn) Log::channel('apiAuthLog')->info(["md5 sign:", md5($signature_string . $secret), '$signature', $signature, 'result', md5($signature_string . $secret) === $signature]);
+        $this->log(["md5 sign:", md5($signature_string . $secret), '$signature', $signature, 'result', md5($signature_string . $secret) === $signature]);
         if (!$alg::check($signature_string, $secret, $signature)) {
             $this->error_handler('invalid token !', static::InvalidTokenException);
         }
@@ -227,6 +196,11 @@ class Middleware
         return $request;
     }
 
+    /**
+     * @param Request $request
+     *
+     * @return bool
+     */
     public function is_skip(Request $request): bool
     {
         $handler = [static::class, 'default_skip_handler'];
@@ -251,5 +225,38 @@ class Middleware
         }
 
         return false;
+    }
+
+    /**
+     * @param string $msg
+     */
+    private function log($msg)
+    {
+        if ($this->logOn)
+            Log::channel('apiAuthLog')->info($msg);
+    }
+
+    /**
+     * @param Request  $request
+     *
+     * @return mixed
+     * @throws \Hoga\LaravelApiAuth\Exceptions\AccessKeyException
+     * @throws \Hoga\LaravelApiAuth\Exceptions\InvalidTokenException
+     * @throws \Hoga\LaravelApiAuth\Exceptions\SignatureMethodException
+     */
+    private function error_handler($err_msg, $errException)
+    {
+        if ($this->error403 || !$errException)
+            abort(403, $err_msg);
+        else {
+            switch ($errException) {
+                case static::AccessKeyException:
+                    throw new AccessKeyException($err_msg);
+                case static::InvalidTokenException:
+                    throw new InvalidTokenException($err_msg);
+                case static::SignatureMethodException:
+                    throw new SignatureMethodException($err_msg);
+            }
+        }
     }
 }

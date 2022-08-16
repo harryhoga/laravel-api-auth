@@ -51,7 +51,7 @@ composer require hoga/laravel-api-auth
    <?php
     /**
      * User: hoga
-     * Date: 2022/4/16
+     * Date: 2022/8/16
      * Time: 下午3:22
      */
     
@@ -131,9 +131,9 @@ const ajaxPost = (params) => {
     "ak": access_key,
     "paramData": {}
   };
-  for (let key in params) {
+  //checkparam 需要检验的参数, 长度过长需缩减
+  for (let key in params) 
     ak.paramData[key] = params[key] && params[key].length>100 ? params[key].slice(0, 100) : params[key];
-  }
   const payload = Base64.encode(JSON.stringify(ak));
   const signature_string = header + '.' + payload;
   const api_token = signature_string + '.' + md5Sign(signature_string, secret_key);
@@ -151,7 +151,7 @@ const ajaxPost = (params) => {
       console.log(err)
     });
 }
-let data = { xxx : 1};
+let data = { xxx : val};
 ajaxPost(data);
 
 ```
